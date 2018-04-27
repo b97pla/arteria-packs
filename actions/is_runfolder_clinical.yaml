@@ -1,0 +1,12 @@
+---
+name: "is_runfolder_clinical"
+runner_type: "python-script"
+description: "Looks up a runfolder in Clarity LIMS and returns True if it contains clinical projects and False otherwise"
+enabled: true
+entry_point: "is_runfolder_clinical.py"
+parameters:
+  flowcell_name:
+    type: "string"
+    description: "Name of the flowcell to look up projects in the Clarity LIMS for"
+    required: true
+

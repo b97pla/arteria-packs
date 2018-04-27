@@ -61,6 +61,9 @@ workflows:
                 remote_host_key: <% task(get_config).result.result.remote_host_key %>
                 biotank_user_key: <% task(get_config).result.result.biotank_user_key %>
                 samplesheet_fallback_path: <% task(get_config).result.result.samplesheet_fallback_path %>
+                clinical_host: "hactar.igp.uu.se"
+                clinical_user: "ngi"
+                send_clinical_mail_to: "operator@clinical-genomics.se"
               on-success:
                  - mark_as_started
 
@@ -186,7 +189,7 @@ workflows:
                     - oh_shit_error: <% task(run_checkqc).state = 'ERROR' %>
                     - mark_as_failed: <% task(run_checkqc).state = 'ERROR' %>
             ### CHECK INDICES END###
-            ### TRANSFER FILES TO UPPMAX START ###
+            ### TRANSFER FILES TO REMOTE DESTINATIONS START ###
             get_year:
               action: core.local
               input:
@@ -221,7 +224,17 @@ workflows:
                 runfolder_name: "<% $.runfolder_name %>"
                 private_key: <% $.summary_host_key %>
               on-success:
-                - rsync_to_irma
+                - is_runfolder_clinical
+
+            is_runfolder_clinical:
+              action: arteria-packs.is_runfolder_clinical
+              input:
+                flowcell_name: <% $.flowcell_name %>
+              publish:
+                clinical_runfolder: <% task(is_runfolder_clinical).result.result %>
+              on-success:
+                - rsync_to_irma: <% $.clinical_runfolder = false %>
+                - rsync_to_clinical_genomics: <% $.clinical_runfolder = true %>
 
             rsync_to_irma:
                 action: arteria-packs.sync_workflow
@@ -249,7 +262,24 @@ workflows:
                 on-success:
                   - irma_run_aeacus_stats
 
-            ### TRANSFER FILES TO UPPMAX END ###
+            rsync_to_clinical_genomics:
+                action: arteria-packs.sync_workflow
+                input:
+                    runfolder: <% $.runfolder %>
+                    runfolder_name: <% $.runfolder_name %>
+                    source_host: <% $.host %>
+                    source_user: "arteria"
+                    destination_host: "<% $.clinical_host %>"
+                    destination_user: "<% $.clinical_user %>"
+                    destination_path: ""
+                    rsync_include_file: /etc/arteria/misc/hiseq.rsync
+                    md5_output_file: "checksums.md5"
+                on-success:
+                  - notify_finished
+                  - notify_clinical_finished
+                  - mark_as_finished
+
+            ### TRANSFER FILES TO REMOTE DESTINATIONS END ###
 
             ### START AEACUS REPORT STEPS ###
             irma_run_aeacus_stats:
@@ -318,6 +348,13 @@ workflows:
                     to: <% $.send_mail_to %>
                     subject: "'[ARTERIA] - Finished processing runfolder <% $.runfolder_name %>'"
                     body: "Finished processing on <% $.host %> for <% $.runfolder_name %>"
+
+            notify_clinical_finished:
+                action: core.sendmail
+                input:
+                    to: <% $.send_clinical_mail_to %>
+                    subject: "'[NGI] - Finished processing and uploading runfolder <% $.runfolder_name %>'"
+                    body: "Finished processing of <% $.runfolder_name %> and uploaded to <% $.clinical_host %>"
 
             oh_shit_error:
                 action: core.sendmail

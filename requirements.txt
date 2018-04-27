@@ -2,3 +2,5 @@ jsonpickle
 requests
 click
 tabulate
+genologics
+-e git+https://github.com/Molmed/clarity-ext.git@develop#egg=clarity-ext
